@@ -242,7 +242,7 @@ export function renderUi(title: string): string {
         const lines = [...log.querySelectorAll('.entry:not(.hidden)')].map((row) =>
           [...row.children].map((child) => child.textContent).join(' ')
         );
-        await navigator.clipboard.writeText(lines.join('\n'));
+        await navigator.clipboard.writeText(lines.join('\\n'));
         copyButton.textContent = 'Copied';
         setTimeout(() => { copyButton.textContent = 'Copy visible'; }, 1000);
       });
