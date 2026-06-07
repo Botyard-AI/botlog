@@ -1,4 +1,4 @@
-import type { ChildProcess } from "node:child_process";
+import type { Readable } from "node:stream";
 
 export type LogLevel = "info" | "error";
 export type StreamStatus = "running" | "completed" | "failed";
@@ -55,4 +55,8 @@ export interface AttachedFile {
   close(): void;
 }
 
-export type AttachableProcess = Pick<ChildProcess, "stdout" | "stderr" | "once">;
+export interface AttachableProcess {
+  readonly stdout: Readable | null;
+  readonly stderr: Readable | null;
+  once(event: "exit", listener: (code: number | null) => void): unknown;
+}
