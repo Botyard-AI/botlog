@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Botlog is a public TypeScript package for exposing live logs from scripts, services, files, and child processes through a lightweight web UI. Keep the package generic: it should not assume any specific hosting platform, proxy, deployment product, or automation environment.
+Botlog is a public TypeScript package for exposing live logs from scripts, services, files, and child processes through a lightweight web UI.
 
 Core goals:
 
