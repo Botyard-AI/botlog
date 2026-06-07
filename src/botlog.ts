@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { watch } from "node:fs";
 import { open, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import type { Readable } from "node:stream";
@@ -150,8 +151,16 @@ async function tailFile(
   let buffer = "";
   const pollIntervalMs = options.pollIntervalMs ?? 500;
   let closed = false;
+  let reading = false;
+  let readAgain = false;
 
   async function readNewBytes(): Promise<void> {
+    if (reading) {
+      readAgain = true;
+      return;
+    }
+
+    reading = true;
     const file = await open(path, "r");
     try {
       const current = await file.stat();
@@ -176,22 +185,35 @@ async function tailFile(
       }
     } finally {
       await file.close();
+      reading = false;
+    }
+
+    if (readAgain) {
+      readAgain = false;
+      await readNewBytes();
     }
   }
 
-  await readNewBytes();
-  const interval = setInterval(() => {
+  function scheduleRead(): void {
     if (closed) {
       return;
     }
     void readNewBytes().catch((error: unknown) => {
       stream.error(error instanceof Error ? error.message : String(error));
     });
-  }, pollIntervalMs);
+  }
+
+  await readNewBytes();
+  const watcher = watch(path, scheduleRead);
+  watcher.on("error", (error) => {
+    stream.error(error.message);
+  });
+  const interval = setInterval(scheduleRead, pollIntervalMs);
 
   return {
     close() {
       closed = true;
+      watcher.close();
       clearInterval(interval);
       if (buffer.length > 0) {
         stream.write(buffer);
