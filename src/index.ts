@@ -4,7 +4,9 @@ export { LogStore } from "./store.js";
 export { redactLine } from "./redaction.js";
 export type {
   AttachableProcess,
+  AttachedFile,
   AttachedProcessOptions,
+  AttachFileOptions,
   BotlogOptions,
   BotlogSnapshot,
   ListenOptions,

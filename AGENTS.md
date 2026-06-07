@@ -7,6 +7,7 @@ Botlog is a public TypeScript package for exposing live logs from bot-run proces
 Core goals:
 
 - simple API for attaching child process stdout/stderr
+- tailing one or more log files concurrently
 - manual log streams for agent progress updates
 - live browser updates via Server-Sent Events
 - bounded in-memory storage
@@ -52,6 +53,7 @@ Run `pnpm ci` before pushing or reporting work complete.
 - Import local TypeScript modules with `.js` specifiers because this repo uses NodeNext module resolution.
 - Keep server startup side-effect-free: importing the package must not bind a port.
 - Prefer SSE over WebSockets for log streaming unless bidirectional communication becomes necessary.
+- File tailing should support multiple concurrent files and stay bounded; do not introduce unbounded reads.
 - Keep storage bounded; do not add unbounded log accumulation.
 - Do not add built-in auth by default. Document that deployments must protect access when needed.
 

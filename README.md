@@ -44,6 +44,17 @@ stream.error("Example error line");
 stream.end("completed");
 ```
 
+## Attach log files
+
+```ts
+await botlog.attachFiles(["/tmp/api.log", "/tmp/worker.log"], {
+  fromBeginning: false,
+  pollIntervalMs: 500,
+});
+```
+
+The UI includes text filtering, stream filtering, level filtering, copy-visible output, auto-scroll toggle, and a viewer-side pause/resume control for live streaming.
+
 ## Security
 
 Logs can leak secrets. Botlog supports redaction hooks, but redaction is not a substitute for careful command design. Avoid printing credentials, tokens, customer data, or sensitive environment variables.

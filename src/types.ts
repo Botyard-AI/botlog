@@ -44,4 +44,15 @@ export interface AttachedProcessOptions {
   readonly stderrPrefix?: string;
 }
 
+export interface AttachFileOptions {
+  readonly fromBeginning?: boolean;
+  readonly pollIntervalMs?: number;
+}
+
+export interface AttachedFile {
+  readonly path: string;
+  readonly stream: LogStreamSnapshot;
+  close(): void;
+}
+
 export type AttachableProcess = Pick<ChildProcess, "stdout" | "stderr" | "once">;
