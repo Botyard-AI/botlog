@@ -1,8 +1,8 @@
 # Botlog
 
-Live process logs for bots, agents, and Botyard Bot Pages.
+Lightweight live logs for scripts, services, files, and child processes.
 
-Botlog is a tiny TypeScript service for attaching running processes or manual log streams and exposing them through a simple live web UI. It is designed for agent-run work: tests, builds, migrations, scrapers, long-running probes, and other jobs where a human should be able to watch progress without reading the bot's terminal transcript.
+Botlog is a tiny TypeScript package for exposing live logs through a simple searchable web UI. Attach child process stdout/stderr, tail one or more log files, or write manual stream events for tests, builds, migrations, scrapers, probes, and other jobs where a human should be able to watch progress without reading a terminal transcript.
 
 ## Install
 
@@ -27,7 +27,7 @@ botlog.attachProcess("pnpm build", child);
 botlog.listen({ port: 3030 });
 ```
 
-In Botyard, expose the running server as a Bot Page:
+Use it locally, behind your own proxy, or with Botyard Bot Pages when you want an authenticated shareable URL:
 
 ```ts
 await exposeBotPage({ port: 3030, name: "build-logs", kind: "web_app" });
@@ -53,11 +53,11 @@ await botlog.attachFiles(["/tmp/api.log", "/tmp/worker.log"], {
 });
 ```
 
-The UI includes text filtering, stream filtering, level filtering, copy-visible output, auto-scroll toggle, and a viewer-side pause/resume control for live streaming.
+The UI includes text filtering, stream filtering, level filtering, copy-visible output, auto-scroll toggle, and a viewer-side pause/resume control for live streaming. Live updates use Server-Sent Events with a polling fallback.
 
 ## Security
 
-Logs can leak secrets. Botlog supports redaction hooks, but redaction is not a substitute for careful command design. Avoid printing credentials, tokens, customer data, or sensitive environment variables.
+Logs can leak secrets. Botlog does not include built-in auth; run it locally, behind a trusted proxy, or through an authenticated sharing layer such as Botyard Bot Pages. Botlog supports redaction hooks, but redaction is not a substitute for careful command design. Avoid printing credentials, tokens, customer data, or sensitive environment variables.
 
 ```ts
 const botlog = new Botlog({

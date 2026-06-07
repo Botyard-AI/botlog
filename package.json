@@ -1,7 +1,7 @@
 {
   "name": "@botyard/botlog",
   "version": "0.1.0",
-  "description": "Live process logs for bots, agents, and Botyard Bot Pages.",
+  "description": "Lightweight live log viewer for scripts, services, files, and child processes.",
   "type": "module",
   "private": false,
   "engines": {

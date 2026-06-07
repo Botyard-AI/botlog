@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Botlog is a public TypeScript package for exposing live logs from bot-run processes through a lightweight web UI. It is intended for Botyard Bot Pages, but should remain useful outside Botyard.
+Botlog is a public TypeScript package for exposing live logs from scripts, services, files, and child processes through a lightweight web UI. It is generic Node.js tooling; Botyard Bot Pages are a useful sharing surface, not a runtime requirement.
 
 Core goals:
 
@@ -12,7 +12,7 @@ Core goals:
 - live browser updates via Server-Sent Events
 - bounded in-memory storage
 - basic redaction hooks
-- no built-in auth; Bot Pages or the embedding environment provide access control
+- no built-in auth; localhost, Bot Pages, a reverse proxy, or the embedding environment provide access control
 
 ## Repository Structure
 
@@ -56,7 +56,7 @@ Run `pnpm ci` before pushing or reporting work complete.
 - File tailing should support multiple concurrent files and stay bounded; do not introduce unbounded reads.
 - Keep storage bounded; do not add unbounded log accumulation.
 - Do not add built-in auth by default. Document that deployments must protect access when needed.
-- Keep the default UI aligned with Botyard brand tokens: navy `#0d1b2a`, card `#0a131e`, rust `#d4622b`, amber `#e8952a`, steel/slate/rivet neutrals, DM Sans/Oswald/IBM Plex Mono font stack.
+- Keep the default UI lightweight and readable. The current theme uses Botyard-adjacent dark tokens: navy `#0d1b2a`, card `#0a131e`, rust `#d4622b`, amber `#e8952a`, steel/slate/rivet neutrals, DM Sans/Oswald/IBM Plex Mono font stack.
 
 ## Security Notes
 
