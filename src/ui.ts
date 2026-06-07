@@ -89,8 +89,9 @@ export function renderUi(title: string): string {
       }
       input:focus, select:focus, button:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232, 149, 42, 0.16); }
       input { min-width: min(380px, 100%); flex: 1; }
-      button { cursor: pointer; transition: border-color .12s ease, color .12s ease, background .12s ease; }
-      button:hover { border-color: var(--secondary); background: rgba(43, 58, 66, 0.72); }
+      select, button { cursor: pointer; }
+      button { transition: border-color .12s ease, color .12s ease, background .12s ease; }
+      select:hover, button:hover { border-color: var(--secondary); background: rgba(43, 58, 66, 0.72); }
       button.active { border-color: var(--primary); color: var(--primary-foreground); background: rgba(212, 98, 43, 0.16); }
       main { max-width: 1280px; margin: 0 auto; padding: 18px 20px 40px; }
       .log-card {
