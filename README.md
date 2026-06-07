@@ -82,3 +82,17 @@ corepack enable
 pnpm install
 pnpm ci
 ```
+
+## Publishing
+
+The package is published to npm from GitHub Actions. Maintainers can publish by creating a GitHub Release or running the `publish` workflow manually. The workflow runs the full CI command before publishing with npm provenance.
+
+Required repository secret:
+
+- `NPM_TOKEN` — npm automation token with publish access to the `botlog` package.
+
+Before publishing locally or from CI, verify the package contents:
+
+```sh
+pnpm pack:dry-run
+```
