@@ -4,6 +4,7 @@ build/
 coverage/
 .pnpm-store/
 *.log
+.demo-logs/
 npm-debug.log*
 pnpm-debug.log*
 .env

@@ -3,6 +3,29 @@
   "version": "0.1.0",
   "description": "Lightweight live log viewer for scripts, services, files, and child processes.",
   "type": "module",
+  "license": "MIT",
+  "author": "Botlog contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Botyard-AI/botlog.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Botyard-AI/botlog/issues"
+  },
+  "homepage": "https://github.com/Botyard-AI/botlog#readme",
+  "keywords": [
+    "logs",
+    "logging",
+    "viewer",
+    "tail",
+    "sse",
+    "typescript",
+    "hono"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "private": false,
   "engines": {
     "node": ">=22"

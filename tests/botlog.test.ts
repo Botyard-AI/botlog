@@ -15,6 +15,10 @@ class FakeProcess extends EventEmitter implements AttachableProcess {
     this.stderr.end();
     this.emit("exit", code);
   }
+
+  exitBeforePipesClose(code: number | null): void {
+    this.emit("exit", code);
+  }
 }
 
 describe("Botlog", () => {
@@ -35,6 +39,25 @@ describe("Botlog", () => {
       { level: "info", text: "hello" },
       { level: "error", text: "[REDACTED]" },
     ]);
+  });
+
+  it("creates distinct stream ids when names slugify to the same value", () => {
+    const botlog = new Botlog({ title: "manual" });
+
+    const first = botlog.createStream("build (1)");
+    const second = botlog.createStream("build-1");
+
+    expect(first.id).toBe("build-1");
+    expect(second.id).toBe("build-1-2");
+  });
+
+  it("preserves blank log lines", () => {
+    const botlog = new Botlog({ title: "manual" });
+    const stream = botlog.createStream("manual stream");
+
+    stream.info("before\n\nafter");
+
+    expect(botlog.snapshot().entries.map((entry) => entry.text)).toEqual(["before", "", "after"]);
   });
 
   it("attaches child stdout and stderr, flushes partial lines, and marks success", async () => {
@@ -62,6 +85,24 @@ describe("Botlog", () => {
       { level: "error", text: "err one" },
       { level: "info", text: "out two partial" },
     ]);
+  });
+
+  it("waits for stdout and stderr to end before marking a process completed", async () => {
+    const botlog = new Botlog({ title: "process" });
+    const child = new FakeProcess();
+
+    botlog.attachProcess("racy command", child);
+    child.stdout.write("final partial");
+    child.exitBeforePipesClose(0);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(botlog.snapshot().streams[0]?.status).toBe("running");
+
+    child.stdout.end();
+    child.stderr.end();
+    await waitFor(() => botlog.snapshot().streams[0]?.status === "completed");
+
+    expect(botlog.snapshot().entries.map((entry) => entry.text)).toContain("final partial");
   });
 
   it("marks failed child processes", async () => {

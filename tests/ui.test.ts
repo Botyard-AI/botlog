@@ -24,7 +24,10 @@ describe("renderUi", () => {
     const script = extractScripts(renderUi("Test"))[0] ?? "";
 
     expect(script).toContain("seenEntryIds");
+    expect(script).toContain("function startPollingFallback()");
+    expect(script).toContain("function stopPollingFallback()");
     expect(script).toContain("setInterval");
+    expect(script).toContain("clearInterval");
     expect(script).toContain("/api/state");
     expect(script).toContain("polling fallback");
   });

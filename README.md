@@ -24,7 +24,11 @@ const child = spawn("pnpm", ["build"], {
 
 botlog.attachProcess("pnpm build", child);
 
-botlog.listen({ port: 3030 });
+const server = botlog.listen({ port: 3030 });
+
+process.on("SIGINT", () => {
+  void server.close().then(() => process.exit(0));
+});
 ```
 
 Run the server locally, keep it on a private network, or put it behind your own authenticated proxy when sharing logs with other people.
@@ -49,11 +53,21 @@ await botlog.attachFiles(["/tmp/api.log", "/tmp/worker.log"], {
 });
 ```
 
-The UI includes text filtering, stream filtering, level filtering, copy-visible output, auto-scroll toggle, and a viewer-side pause/resume control for live streaming. Live updates use Server-Sent Events with a polling fallback.
+The UI includes text filtering, stream filtering, level filtering, copy-visible output, auto-scroll toggle, and a viewer-side pause/resume control for live streaming. Live updates use Server-Sent Events with a polling fallback that activates when the SSE connection drops.
+
+## API notes
+
+The main supported entry point is `Botlog`. The package also exports lower-level helpers for advanced embedding:
+
+- `createApp()` builds the Hono app around a `LogStore`.
+- `LogStore` is the bounded in-memory store used by the server and UI.
+- `redactLine()` applies the built-in and custom redaction rules to one line.
+
+These exports are public in the `0.x` line, but the `Botlog` class is the preferred API for most users.
 
 ## Security
 
-Logs can leak secrets. Botlog does not include built-in auth; run it locally, on a private network, or behind a trusted authenticated proxy. Botlog supports redaction hooks, but redaction is not a substitute for careful command design. Avoid printing credentials, tokens, customer data, or sensitive environment variables.
+Logs can leak secrets. Botlog does not include built-in auth, CORS configuration, or a Content Security Policy; run it locally, on a private network, or behind a trusted authenticated proxy. Botlog supports redaction hooks, but redaction is best-effort and can over- or under-match structured data such as JSON. Redaction is not a substitute for careful command design. Avoid printing credentials, tokens, customer data, or sensitive environment variables.
 
 ```ts
 const botlog = new Botlog({

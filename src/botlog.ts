@@ -13,6 +13,7 @@ import type {
   AttachedProcessOptions,
   AttachFileOptions,
   BotlogOptions,
+  BotlogServer,
   BotlogSnapshot,
   ListenOptions,
   LogLevel,
@@ -29,13 +30,27 @@ export class Botlog {
       title: options.title ?? "Botlog",
       maxEntries: options.maxEntries ?? 10_000,
     });
-    this.#redactors = options.redact ?? [];
+    this.#redactors = [...(options.redact ?? [])];
   }
 
   createStream(name: string): BotlogStream {
-    const id = slugify(name) || randomUUID();
+    const id = this.#createStreamId(name);
     this.#store.ensureStream(id, name);
     return new BotlogStream({ id, store: this.#store, redactors: this.#redactors });
+  }
+
+  #createStreamId(name: string): string {
+    const baseId = slugify(name) || randomUUID();
+    const existingIds = new Set(this.#store.snapshot().streams.map((stream) => stream.id));
+    if (!existingIds.has(baseId)) {
+      return baseId;
+    }
+
+    let suffix = 2;
+    while (existingIds.has(`${baseId}-${String(suffix)}`)) {
+      suffix += 1;
+    }
+    return `${baseId}-${String(suffix)}`;
   }
 
   attachProcess(
@@ -45,15 +60,41 @@ export class Botlog {
   ): BotlogStream {
     const stream = this.createStream(name);
 
-    attachReadable(child.stdout, (line) => {
-      stream.write(`${options.stdoutPrefix ?? ""}${line}`);
-    });
-    attachReadable(child.stderr, (line) => {
-      stream.error(`${options.stderrPrefix ?? ""}${line}`);
-    });
+    let exitCode: number | null | undefined;
+    let endedReadables = 0;
+    const expectedReadables = Number(child.stdout !== null) + Number(child.stderr !== null);
+
+    const maybeEndStream = (): void => {
+      if (exitCode === undefined || endedReadables < expectedReadables) {
+        return;
+      }
+      stream.end(exitCode === 0 ? "completed" : "failed", exitCode);
+    };
+
+    attachReadable(
+      child.stdout,
+      (line) => {
+        stream.write(`${options.stdoutPrefix ?? ""}${line}`);
+      },
+      () => {
+        endedReadables += 1;
+        maybeEndStream();
+      }
+    );
+    attachReadable(
+      child.stderr,
+      (line) => {
+        stream.error(`${options.stderrPrefix ?? ""}${line}`);
+      },
+      () => {
+        endedReadables += 1;
+        maybeEndStream();
+      }
+    );
 
     child.once("exit", (code: number | null) => {
-      stream.end(code === 0 ? "completed" : "failed", code);
+      exitCode = code;
+      maybeEndStream();
     });
 
     return stream;
@@ -71,7 +112,7 @@ export class Botlog {
 
     return {
       path,
-      stream: snapshot,
+      stream,
       close: () => {
         watcher.close();
       },
@@ -89,8 +130,8 @@ export class Botlog {
     return this.#store.snapshot();
   }
 
-  listen(options: ListenOptions): void {
-    listen(this.#store, options);
+  listen(options: ListenOptions): BotlogServer {
+    return listen(this.#store, options);
   }
 }
 
@@ -147,7 +188,9 @@ async function tailFile(
   stream: BotlogStream,
   options: AttachFileOptions
 ): Promise<FileWatcher> {
-  let position = options.fromBeginning === true ? 0 : (await stat(path)).size;
+  const initialStat = await stat(path);
+  let fileIdentity = getFileIdentity(initialStat);
+  let position = options.fromBeginning === true ? 0 : initialStat.size;
   let buffer = "";
   const pollIntervalMs = options.pollIntervalMs ?? 500;
   let closed = false;
@@ -161,30 +204,43 @@ async function tailFile(
     }
 
     reading = true;
-    const file = await open(path, "r");
     try {
-      const current = await file.stat();
-      if (current.size < position) {
+      const file = await open(path, "r").catch((error: unknown) => {
         position = 0;
         buffer = "";
-      }
-      if (current.size === position) {
-        return;
-      }
+        throw error;
+      });
+      try {
+        const current = await file.stat();
+        const currentIdentity = getFileIdentity(current);
+        if (currentIdentity !== fileIdentity) {
+          fileIdentity = currentIdentity;
+          position = 0;
+          buffer = "";
+        }
+        if (current.size < position) {
+          position = 0;
+          buffer = "";
+        }
+        if (current.size === position) {
+          return;
+        }
 
-      const length = current.size - position;
-      const bytes = Buffer.alloc(length);
-      await file.read(bytes, 0, length, position);
-      position = current.size;
-      buffer += bytes.toString("utf8");
+        const length = current.size - position;
+        const bytes = Buffer.alloc(length);
+        await file.read(bytes, 0, length, position);
+        position = current.size;
+        buffer += bytes.toString("utf8");
 
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        stream.write(line);
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          stream.write(line);
+        }
+      } finally {
+        await file.close();
       }
     } finally {
-      await file.close();
       reading = false;
     }
 
@@ -224,7 +280,20 @@ async function tailFile(
   };
 }
 
-function attachReadable(readable: Readable | null, onLine: (line: string) => void): void {
+interface FileIdentitySource {
+  readonly dev: number;
+  readonly ino: number;
+}
+
+function getFileIdentity(stats: FileIdentitySource): string {
+  return `${String(stats.dev)}:${String(stats.ino)}`;
+}
+
+function attachReadable(
+  readable: Readable | null,
+  onLine: (line: string) => void,
+  onEnd: () => void
+): void {
   if (readable === null) {
     return;
   }
@@ -243,12 +312,16 @@ function attachReadable(readable: Readable | null, onLine: (line: string) => voi
     if (buffer.length > 0) {
       onLine(buffer);
     }
+    onEnd();
   });
 }
 
 function splitLines(text: string): readonly string[] {
-  const lines = text.split(/\r?\n/).filter((line) => line.length > 0);
-  return lines.length > 0 ? lines : [""];
+  const lines = text.split(/\r?\n/);
+  if (lines.length > 1 && lines.at(-1) === "") {
+    lines.pop();
+  }
+  return lines;
 }
 
 function slugify(value: string): string {

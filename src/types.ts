@@ -39,6 +39,11 @@ export interface ListenOptions {
   readonly hostname?: string;
 }
 
+export interface BotlogServer {
+  readonly port: number;
+  close(): Promise<void>;
+}
+
 export interface AttachedProcessOptions {
   readonly stdoutPrefix?: string;
   readonly stderrPrefix?: string;
@@ -51,8 +56,16 @@ export interface AttachFileOptions {
 
 export interface AttachedFile {
   readonly path: string;
-  readonly stream: LogStreamSnapshot;
+  readonly stream: BotlogStreamHandle;
   close(): void;
+}
+
+export interface BotlogStreamHandle {
+  readonly id: string;
+  write(text: string): void;
+  info(text: string): void;
+  error(text: string): void;
+  end(status?: StreamStatus, exitCode?: number | null): void;
 }
 
 export interface AttachableProcess {

@@ -258,10 +258,26 @@ export function renderUi(title: string): string {
         updateMeta(paused ? 'Paused' : status);
       }
 
-      syncState().catch(() => updateMeta('State sync failed'));
-      setInterval(() => {
+      let pollingFallback = undefined;
+
+      function startPollingFallback() {
+        if (pollingFallback !== undefined) return;
         syncState('Connected · polling fallback').catch(() => updateMeta('Polling failed'));
-      }, 2000);
+        pollingFallback = setInterval(() => {
+          syncState('Connected · polling fallback').catch(() => updateMeta('Polling failed'));
+        }, 2000);
+      }
+
+      function stopPollingFallback() {
+        if (pollingFallback === undefined) return;
+        clearInterval(pollingFallback);
+        pollingFallback = undefined;
+      }
+
+      syncState().catch(() => {
+        updateMeta('State sync failed; polling fallback active');
+        startPollingFallback();
+      });
 
       const events = new EventSource('/events');
       events.addEventListener('stream', (event) => {
@@ -271,8 +287,18 @@ export function renderUi(title: string): string {
         updateMeta(paused ? 'Paused' : 'Connected');
       });
       events.addEventListener('entry', (event) => handleEntry(JSON.parse(event.data)));
-      events.addEventListener('ready', () => { updateMeta(paused ? 'Paused' : 'Connected'); });
-      events.onerror = () => { updateMeta('SSE disconnected; polling fallback active'); };
+      events.addEventListener('ready', () => {
+        stopPollingFallback();
+        updateMeta(paused ? 'Paused' : 'Connected');
+      });
+      events.onopen = () => {
+        stopPollingFallback();
+        updateMeta(paused ? 'Paused' : 'Connected');
+      };
+      events.onerror = () => {
+        updateMeta('SSE disconnected; polling fallback active');
+        startPollingFallback();
+      };
     </script>
   </body>
 </html>`;

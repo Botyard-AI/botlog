@@ -74,6 +74,19 @@ describe("file attachments", () => {
     expect(botlog.snapshot().entries.map((entry) => entry.text)).not.toContain(" ignored");
   });
 
+  it("continues tailing if the file temporarily disappears", async () => {
+    const { first } = await createLogFiles();
+    const botlog = new Botlog({ title: "files" });
+
+    const attached = await botlog.attachFile(first, { pollIntervalMs: 20 });
+    await rm(first, { force: true });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    await writeFile(first, "after recreate\n");
+    await waitFor(() => botlog.snapshot().entries.some((entry) => entry.text === "after recreate"));
+
+    attached.close();
+  });
+
   it("resets when a file is truncated", async () => {
     const { first } = await createLogFiles();
     const botlog = new Botlog({ title: "files" });
