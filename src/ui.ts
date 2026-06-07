@@ -155,6 +155,7 @@ export function renderUi(title: string): string {
       let paused = false;
       const streams = new Map();
       const entries = [];
+      const seenEntryIds = new Set();
       const queue = [];
 
       function ensureStreamOption(stream) {
@@ -204,6 +205,8 @@ export function renderUi(title: string): string {
       }
 
       function handleEntry(entry) {
+        if (seenEntryIds.has(entry.id)) return;
+        seenEntryIds.add(entry.id);
         entries.push(entry);
         if (paused) {
           queue.push(entry);
@@ -244,14 +247,22 @@ export function renderUi(title: string): string {
         setTimeout(() => { copyButton.textContent = 'Copy visible'; }, 1000);
       });
 
-      fetch('/api/state').then((r) => r.json()).then((snapshot) => {
+      async function syncState(status = 'Connected') {
+        const response = await fetch('/api/state');
+        const snapshot = await response.json();
         for (const stream of snapshot.streams) {
           streams.set(stream.id, stream);
           ensureStreamOption(stream);
         }
         for (const entry of snapshot.entries) handleEntry(entry);
-        updateMeta();
-      });
+        updateMeta(paused ? 'Paused' : status);
+      }
+
+      syncState().catch(() => updateMeta('State sync failed'));
+      setInterval(() => {
+        syncState('Connected · polling fallback').catch(() => updateMeta('Polling failed'));
+      }, 2000);
+
       const events = new EventSource('/events');
       events.addEventListener('stream', (event) => {
         const stream = JSON.parse(event.data);
@@ -261,7 +272,7 @@ export function renderUi(title: string): string {
       });
       events.addEventListener('entry', (event) => handleEntry(JSON.parse(event.data)));
       events.addEventListener('ready', () => { updateMeta(paused ? 'Paused' : 'Connected'); });
-      events.onerror = () => { updateMeta('Disconnected; retrying…'); };
+      events.onerror = () => { updateMeta('SSE disconnected; polling fallback active'); };
     </script>
   </body>
 </html>`;
