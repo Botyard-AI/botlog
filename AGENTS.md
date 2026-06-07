@@ -56,6 +56,7 @@ Run `pnpm ci` before pushing or reporting work complete.
 - File tailing should support multiple concurrent files and stay bounded; do not introduce unbounded reads.
 - Keep storage bounded; do not add unbounded log accumulation.
 - Do not add built-in auth by default. Document that deployments must protect access when needed.
+- Keep the default UI aligned with Botyard brand tokens: navy `#0d1b2a`, card `#0a131e`, rust `#d4622b`, amber `#e8952a`, steel/slate/rivet neutrals, DM Sans/Oswald/IBM Plex Mono font stack.
 
 ## Security Notes
 

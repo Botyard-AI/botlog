@@ -7,39 +7,140 @@ export function renderUi(title: string): string {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapedTitle}</title>
     <style>
-      :root { color-scheme: dark; }
+      :root {
+        color-scheme: dark;
+        --radius: 0.625rem;
+        --background: #0d1b2a;
+        --card: #0a131e;
+        --foreground: #e8eaed;
+        --primary: #d4622b;
+        --primary-foreground: #e8eaed;
+        --secondary: #4a5c6a;
+        --secondary-foreground: #e8eaed;
+        --muted: #2b3a42;
+        --muted-foreground: #8a9ba8;
+        --accent: #e8952a;
+        --accent-foreground: #0d1b2a;
+        --border: #4a5c6a;
+        --border-muted: rgba(74, 92, 106, 0.4);
+        --success: #34d399;
+        --danger: #dc2626;
+        --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        --font-heading: Oswald, "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-mono: "IBM Plex Mono", "SF Mono", Menlo, Monaco, Consolas, monospace;
+      }
       * { box-sizing: border-box; }
-      body { margin: 0; background: #09090b; color: #e4e4e7; font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-      header { position: sticky; top: 0; z-index: 1; padding: 16px 20px; border-bottom: 1px solid #27272a; background: rgba(9,9,11,.94); backdrop-filter: blur(10px); }
-      h1 { margin: 0; font: 600 18px/1.2 system-ui, sans-serif; }
-      .meta { margin-top: 4px; color: #a1a1aa; font: 13px/1.3 system-ui, sans-serif; }
-      .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; align-items: center; font-family: system-ui, sans-serif; }
-      input, select, button { border: 1px solid #3f3f46; background: #18181b; color: #e4e4e7; border-radius: 8px; padding: 8px 10px; font: 13px/1.2 system-ui, sans-serif; }
-      input { min-width: min(360px, 100%); flex: 1; }
-      button { cursor: pointer; }
-      button.active { border-color: #60a5fa; color: #bfdbfe; }
-      main { padding: 16px 20px 32px; }
-      .entry { display: grid; grid-template-columns: 88px 150px 1fr; gap: 12px; padding: 2px 0; white-space: pre-wrap; word-break: break-word; }
-      .time, .stream { color: #71717a; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 8% 0%, rgba(212, 98, 43, 0.14), transparent 28rem),
+          radial-gradient(circle at 92% 12%, rgba(232, 149, 42, 0.10), transparent 24rem),
+          var(--background);
+        color: var(--foreground);
+        font: 14px/1.45 var(--font-mono);
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        border-bottom: 1px solid var(--border-muted);
+        background: rgba(13, 27, 42, 0.92);
+        backdrop-filter: blur(14px);
+      }
+      .shell { max-width: 1280px; margin: 0 auto; padding: 18px 20px; }
+      .title-row { display: flex; align-items: center; gap: 12px; }
+      .mark {
+        display: inline-flex;
+        width: 28px;
+        height: 28px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: linear-gradient(135deg, var(--primary), var(--accent));
+        color: var(--accent-foreground);
+        font: 800 14px/1 var(--font-heading);
+        letter-spacing: 0.04em;
+        box-shadow: 0 10px 30px rgba(212, 98, 43, 0.22);
+      }
+      h1 {
+        margin: 0;
+        font: 700 22px/1.05 var(--font-heading);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .meta { margin-top: 6px; color: var(--muted-foreground); font: 13px/1.3 var(--font-sans); }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+        align-items: center;
+        font-family: var(--font-sans);
+      }
+      input, select, button {
+        border: 1px solid var(--border-muted);
+        background: rgba(10, 19, 30, 0.86);
+        color: var(--foreground);
+        border-radius: calc(var(--radius) - 2px);
+        padding: 9px 11px;
+        font: 13px/1.2 var(--font-sans);
+        outline: none;
+      }
+      input:focus, select:focus, button:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232, 149, 42, 0.16); }
+      input { min-width: min(380px, 100%); flex: 1; }
+      button { cursor: pointer; transition: border-color .12s ease, color .12s ease, background .12s ease; }
+      button:hover { border-color: var(--secondary); background: rgba(43, 58, 66, 0.72); }
+      button.active { border-color: var(--primary); color: var(--primary-foreground); background: rgba(212, 98, 43, 0.16); }
+      main { max-width: 1280px; margin: 0 auto; padding: 18px 20px 40px; }
+      .log-card {
+        overflow: hidden;
+        border: 1px solid var(--border-muted);
+        border-radius: var(--radius);
+        background: rgba(10, 19, 30, 0.72);
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.24);
+      }
+      .log-card::before { content: ""; display: block; height: 3px; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+      #log { padding: 12px 14px 18px; }
+      .entry {
+        display: grid;
+        grid-template-columns: 92px 160px 1fr;
+        gap: 12px;
+        padding: 4px 6px;
+        border-radius: 6px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .entry:hover { background: rgba(43, 58, 66, 0.32); }
+      .time { color: var(--muted-foreground); }
+      .stream { color: var(--accent); }
+      .message { color: var(--foreground); }
+      .error .stream { color: #fca5a5; }
       .error .message { color: #fca5a5; }
       .hidden { display: none; }
-      .empty { color: #71717a; font-family: system-ui, sans-serif; }
+      .empty { margin: 12px 6px; color: var(--muted-foreground); font-family: var(--font-sans); }
+      @media (max-width: 760px) {
+        .entry { grid-template-columns: 78px 1fr; }
+        .message { grid-column: 1 / -1; }
+      }
     </style>
   </head>
   <body>
     <header>
-      <h1>${escapedTitle}</h1>
-      <div class="meta" id="meta">Connecting…</div>
-      <div class="toolbar">
-        <input id="filter" type="search" placeholder="Filter logs…" />
-        <select id="stream-filter"><option value="">All streams</option></select>
-        <select id="level-filter"><option value="">All levels</option><option value="info">Info</option><option value="error">Error</option></select>
-        <button id="pause">Streaming: on</button>
-        <button id="scroll" class="active">Auto-scroll: on</button>
-        <button id="copy">Copy visible</button>
+      <div class="shell">
+        <div class="title-row"><span class="mark">BL</span><h1>${escapedTitle}</h1></div>
+        <div class="meta" id="meta">Connecting…</div>
+        <div class="toolbar">
+          <input id="filter" type="search" placeholder="Filter logs…" />
+          <select id="stream-filter"><option value="">All streams</option></select>
+          <select id="level-filter"><option value="">All levels</option><option value="info">Info</option><option value="error">Error</option></select>
+          <button id="pause">Streaming: on</button>
+          <button id="scroll" class="active">Auto-scroll: on</button>
+          <button id="copy">Copy visible</button>
+        </div>
       </div>
     </header>
-    <main id="log"><p class="empty">Waiting for logs…</p></main>
+    <main><section class="log-card"><div id="log"><p class="empty">Waiting for logs…</p></div></section></main>
     <script>
       const log = document.querySelector('#log');
       const meta = document.querySelector('#meta');
