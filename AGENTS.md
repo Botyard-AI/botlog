@@ -2,17 +2,17 @@
 
 ## Project Overview
 
-Botlog is a public TypeScript package for exposing live logs from scripts, services, files, and child processes through a lightweight web UI. It is generic Node.js tooling; Botyard Bot Pages are a useful sharing surface, not a runtime requirement.
+Botlog is a public TypeScript package for exposing live logs from scripts, services, files, and child processes through a lightweight web UI. Keep the package generic: it should not assume any specific hosting platform, proxy, deployment product, or automation environment.
 
 Core goals:
 
 - simple API for attaching child process stdout/stderr
 - tailing one or more log files concurrently
-- manual log streams for agent progress updates
+- manual log streams for progress updates
 - live browser updates via Server-Sent Events
 - bounded in-memory storage
 - basic redaction hooks
-- no built-in auth; localhost, Bot Pages, a reverse proxy, or the embedding environment provide access control
+- no built-in auth; localhost, private networks, reverse proxies, or the embedding environment provide access control
 
 ## Repository Structure
 
@@ -56,12 +56,12 @@ Run `pnpm ci` before pushing or reporting work complete.
 - File tailing should support multiple concurrent files and stay bounded; do not introduce unbounded reads.
 - Keep storage bounded; do not add unbounded log accumulation.
 - Do not add built-in auth by default. Document that deployments must protect access when needed.
-- Keep the default UI lightweight and readable. The current theme uses Botyard-adjacent dark tokens: navy `#0d1b2a`, card `#0a131e`, rust `#d4622b`, amber `#e8952a`, steel/slate/rivet neutrals, DM Sans/Oswald/IBM Plex Mono font stack.
+- Keep the default UI lightweight and readable. The current theme uses dark navy/card surfaces, warm accent colors, neutral borders/text, and a sans/condensed/monospace font stack.
 
 ## Security Notes
 
 Logs are sensitive by default. Preserve and improve redaction hooks, but do not claim they make output safe. Avoid examples that print tokens, full environment dumps, private customer data, or credentials.
 
-## Agent Notes
+## Maintainer Notes
 
-Future agents should be able to understand this repo from this file and the README without relying on conversation memory. When adding a new module or changing conventions, update this file in the same PR.
+Future maintainers should be able to understand this repo from this file and the README without relying on conversation memory. When adding a new module or changing conventions, update this file in the same PR.

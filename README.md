@@ -7,13 +7,13 @@ Botlog is a tiny TypeScript package for exposing live logs through a simple sear
 ## Install
 
 ```sh
-pnpm add @botyard/botlog
+pnpm add botlog
 ```
 
 ## Basic usage
 
 ```ts
-import { Botlog } from "@botyard/botlog";
+import { Botlog } from "botlog";
 import { spawn } from "node:child_process";
 
 const botlog = new Botlog({ title: "Build logs" });
@@ -27,11 +27,7 @@ botlog.attachProcess("pnpm build", child);
 botlog.listen({ port: 3030 });
 ```
 
-Use it locally, behind your own proxy, or with Botyard Bot Pages when you want an authenticated shareable URL:
-
-```ts
-await exposeBotPage({ port: 3030, name: "build-logs", kind: "web_app" });
-```
+Run the server locally, keep it on a private network, or put it behind your own authenticated proxy when sharing logs with other people.
 
 ## Manual streams
 
@@ -57,7 +53,7 @@ The UI includes text filtering, stream filtering, level filtering, copy-visible 
 
 ## Security
 
-Logs can leak secrets. Botlog does not include built-in auth; run it locally, behind a trusted proxy, or through an authenticated sharing layer such as Botyard Bot Pages. Botlog supports redaction hooks, but redaction is not a substitute for careful command design. Avoid printing credentials, tokens, customer data, or sensitive environment variables.
+Logs can leak secrets. Botlog does not include built-in auth; run it locally, on a private network, or behind a trusted authenticated proxy. Botlog supports redaction hooks, but redaction is not a substitute for careful command design. Avoid printing credentials, tokens, customer data, or sensitive environment variables.
 
 ```ts
 const botlog = new Botlog({
