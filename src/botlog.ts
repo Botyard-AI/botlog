@@ -96,6 +96,13 @@ export class Botlog {
       }
     );
 
+    child.once("error", (error) => {
+      stream.error(error.message);
+      exitCode = 1;
+      endedReadables = expectedReadables;
+      maybeEndStream();
+    });
+
     child.once("exit", (code: number | null) => {
       exitCode = code;
       maybeEndStream();

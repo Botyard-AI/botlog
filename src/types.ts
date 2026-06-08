@@ -80,4 +80,5 @@ export interface AttachableProcess {
   readonly stdout: Readable | null;
   readonly stderr: Readable | null;
   once(event: "exit", listener: (code: number | null) => void): unknown;
+  once(event: "error", listener: (error: Error) => void): unknown;
 }

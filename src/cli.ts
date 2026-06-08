@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import type { Writable } from "node:stream";
 
 import { Botlog } from "./botlog.js";
+import { redactLine } from "./redaction.js";
 import type { BotlogInfo, Redactor } from "./types.js";
 
 const require = createRequire(import.meta.url);
@@ -249,8 +250,11 @@ export async function runCli(argv: readonly string[] = process.argv.slice(2)): P
     await mkdir(runDir.path, { recursive: true });
   }
 
-  const title = options.title ?? inferTitle(options.command, options.files, runDir);
   const redactors: readonly Redactor[] = options.redactors;
+  const title = redactLine(
+    options.title ?? inferTitle(options.command, options.files, runDir),
+    redactors
+  );
   const botlog = new Botlog({
     title,
     maxEntries: options.maxLines,
@@ -271,15 +275,18 @@ export async function runCli(argv: readonly string[] = process.argv.slice(2)): P
   }
 
   const child = options.command.length > 0 ? spawnCommand(options.command) : undefined;
+  const childExit = child === undefined ? undefined : trackChild(child);
   const stdioFiles =
-    runDir === undefined || child === undefined ? undefined : createRunLogWriters(runDir);
+    runDir === undefined || child === undefined
+      ? undefined
+      : createRunLogWriters(runDir, redactors);
 
   if (child !== undefined) {
     if (stdioFiles !== undefined) {
       teeReadable(child.stdout, options.json ? undefined : process.stdout, stdioFiles.stdout);
       teeReadable(child.stderr, options.json ? undefined : process.stderr, stdioFiles.stderr);
     }
-    botlog.attachProcess(options.command.join(" "), child);
+    botlog.attachProcess(redactLine(options.command.join(" "), redactors), child);
   }
 
   const server = botlog.listen({ port: options.port, hostname: options.host });
@@ -323,7 +330,7 @@ export async function runCli(argv: readonly string[] = process.argv.slice(2)): P
     return 0;
   }
 
-  const exitCode = await waitForChild(child);
+  const exitCode = await childExit;
   await closeWriters(stdioFiles);
   if (options.keepOpen) {
     await waitForShutdown(server);
@@ -438,20 +445,51 @@ function spawnCommand(command: readonly string[]) {
   });
 }
 
-function createRunLogWriters(runDir: ResolvedRunDir): {
-  readonly stdout: Writable;
-  readonly stderr: Writable;
+interface RedactingWriter {
+  write(chunk: Buffer | string): void;
+  close(): Promise<void>;
+}
+
+function createRunLogWriters(
+  runDir: ResolvedRunDir,
+  redactors: readonly Redactor[]
+): {
+  readonly stdout: RedactingWriter;
+  readonly stderr: RedactingWriter;
 } {
   return {
-    stdout: createWriteStream(runDir.stdoutPath, { flags: "a" }),
-    stderr: createWriteStream(runDir.stderrPath, { flags: "a" }),
+    stdout: createRedactingWriter(runDir.stdoutPath, redactors),
+    stderr: createRedactingWriter(runDir.stderrPath, redactors),
+  };
+}
+
+function createRedactingWriter(path: string, redactors: readonly Redactor[]): RedactingWriter {
+  const writer = createWriteStream(path, { flags: "a" });
+  let buffer = "";
+
+  return {
+    write(chunk: Buffer | string) {
+      buffer += chunk.toString();
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        writer.write(`${redactLine(line, redactors)}\n`);
+      }
+    },
+    close() {
+      if (buffer.length > 0) {
+        writer.write(redactLine(buffer, redactors));
+        buffer = "";
+      }
+      return closeWriter(writer);
+    },
   };
 }
 
 function teeReadable(
   readable: NodeJS.ReadableStream | null,
   terminal: Writable | undefined,
-  file: Writable
+  file: RedactingWriter
 ): void {
   readable?.on("data", (chunk: Buffer | string) => {
     terminal?.write(chunk);
@@ -459,27 +497,34 @@ function teeReadable(
   });
 }
 
-function waitForChild(child: ReturnType<typeof spawnCommand>): Promise<number | null> {
+function trackChild(child: ReturnType<typeof spawnCommand>): Promise<number | null> {
   return new Promise((resolve) => {
+    let settled = false;
+    const settle = (code: number | null): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(code);
+    };
+
     child.once("error", (error) => {
       console.error(error.message);
-      resolve(1);
+      settle(1);
     });
     child.once("exit", (code) => {
-      resolve(code);
+      settle(code);
     });
   });
 }
 
 function closeWriters(
-  writers: { readonly stdout: Writable; readonly stderr: Writable } | undefined
+  writers: { readonly stdout: RedactingWriter; readonly stderr: RedactingWriter } | undefined
 ): Promise<void> {
   if (writers === undefined) {
     return Promise.resolve();
   }
-  return Promise.all([closeWriter(writers.stdout), closeWriter(writers.stderr)]).then(
-    () => undefined
-  );
+  return Promise.all([writers.stdout.close(), writers.stderr.close()]).then(() => undefined);
 }
 
 function closeWriter(writer: Writable): Promise<void> {

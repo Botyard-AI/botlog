@@ -105,6 +105,20 @@ describe("Botlog", () => {
     expect(botlog.snapshot().entries.map((entry) => entry.text)).toContain("final partial");
   });
 
+  it("marks child process spawn errors as failed", async () => {
+    const botlog = new Botlog({ title: "process" });
+    const child = new FakeProcess();
+
+    botlog.attachProcess("missing command", child);
+    child.stdout.end();
+    child.stderr.end();
+    child.emit("error", new Error("spawn failed"));
+    await waitFor(() => botlog.snapshot().streams[0]?.status === "failed");
+
+    expect(botlog.snapshot().streams[0]).toMatchObject({ status: "failed", exitCode: 1 });
+    expect(botlog.snapshot().entries.map((entry) => entry.text)).toContain("spawn failed");
+  });
+
   it("marks failed child processes", async () => {
     const botlog = new Botlog({ title: "process" });
     const child = new FakeProcess();
