@@ -41,7 +41,7 @@ jobs:
           version="${{ inputs.version }}"
           VERSION="${version}" node --input-type=module <<'NODE'
           const version = process.env.VERSION;
-          const semver = /^\d+\.\d+\.\d+$/;
+          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
           if (!version || !semver.test(version)) {
             console.error(`Release tag versions must be stable semver like 0.1.0; got ${version ?? ""}`);
             process.exit(1);

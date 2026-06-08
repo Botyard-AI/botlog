@@ -31,7 +31,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           VERSION="${version}" node --input-type=module <<'NODE'
           const version = process.env.VERSION;
-          const semver = /^\d+\.\d+\.\d+$/;
+          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
           if (!version || !semver.test(version)) {
             console.error(`Release tags must be stable semver tags like v0.1.0; got ${process.env.GITHUB_REF_NAME ?? ""}`);
             process.exit(1);
