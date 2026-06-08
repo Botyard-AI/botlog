@@ -87,13 +87,17 @@ pnpm ci
 
 Botlog uses tag-based releases. The git tag is the source of truth for the published npm version; `package.json` uses `0.0.0` as the development baseline.
 
-To publish a release, run the `release tag` GitHub Actions workflow from `main` with the target version, for example:
+To publish a release, run the `release tag` GitHub Actions workflow from `main`. Leave the explicit version blank to auto-bump from the latest published npm version, or provide an explicit stable semver version when needed.
 
-```txt
-0.1.0
-```
+Auto-bump options:
 
-That workflow validates the release candidate, creates annotated tag `v0.1.0`, patches `package.json` in CI, and publishes to npm with provenance in the same workflow run. Publishing in the same run avoids relying on workflow-created tag pushes to trigger a second workflow.
+- `patch` — default when the version is blank, for example `0.1.0` → `0.1.1`
+- `minor` — for example `0.1.0` → `0.2.0`
+- `major` — for example `0.1.0` → `1.0.0`
+
+For the first public release, use a blank version with `minor` selected to produce `0.1.0` from the development baseline `0.0.0`.
+
+The workflow validates the release candidate, creates the annotated tag for the resolved version, patches `package.json` in CI, and publishes to npm with provenance in the same workflow run. Publishing in the same run avoids relying on workflow-created tag pushes to trigger a second workflow.
 
 Required repository secret:
 
