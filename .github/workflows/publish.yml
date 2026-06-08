@@ -1,0 +1,52 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Set package version from tag
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          VERSION="${version}" node --input-type=module <<'NODE'
+          const version = process.env.VERSION;
+          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+          if (!version || !semver.test(version)) {
+            console.error(`Release tags must be stable semver tags like v0.1.0; got ${process.env.GITHUB_REF_NAME ?? ""}`);
+            process.exit(1);
+          }
+          NODE
+          npm pkg set "version=${version}" --no-git-tag-version
+          echo "Publishing botlog@${version} from ${GITHUB_REF_NAME}"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate
+        run: pnpm ci
+
+      - name: Publish to npm
+        run: pnpm publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

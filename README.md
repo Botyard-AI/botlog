@@ -82,3 +82,29 @@ corepack enable
 pnpm install
 pnpm ci
 ```
+
+## Publishing
+
+Botlog uses tag-based releases. The git tag is the source of truth for the published npm version; `package.json` uses `0.0.0` as the development baseline.
+
+To publish a release, run the `release tag` GitHub Actions workflow from `main` with the target version, for example:
+
+```txt
+0.1.0
+```
+
+That workflow validates the release candidate, creates annotated tag `v0.1.0`, patches `package.json` in CI, and publishes to npm with provenance in the same workflow run. Publishing in the same run avoids relying on workflow-created tag pushes to trigger a second workflow.
+
+Required repository secret:
+
+- `NPM_TOKEN` — npm automation token with publish access to the `botlog` package.
+
+There is also a tag-triggered `publish` workflow for trusted maintainers who push a release tag manually. The normal release path is the `release tag` workflow.
+
+The release workflow currently accepts stable semver versions such as `0.1.0`. Prerelease tags should wait until the publish workflow has explicit npm dist-tag handling.
+
+Before publishing locally or changing package configuration, verify the package contents:
+
+```sh
+pnpm pack:dry-run
+```

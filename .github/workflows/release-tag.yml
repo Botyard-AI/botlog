@@ -1,0 +1,117 @@
+name: release tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Stable semver version to release, without the leading v, e.g. 0.1.0"
+        required: true
+        type: string
+      message:
+        description: "Optional annotated tag message"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-tag
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify release request
+        id: release
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Release tags must be created from refs/heads/main; got ${GITHUB_REF}" >&2
+            exit 1
+          fi
+
+          version="${{ inputs.version }}"
+          VERSION="${version}" node --input-type=module <<'NODE'
+          const version = process.env.VERSION;
+          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+          if (!version || !semver.test(version)) {
+            console.error(`Release tag versions must be stable semver like 0.1.0; got ${version ?? ""}`);
+            process.exit(1);
+          }
+          NODE
+
+          tag="v${version}"
+          if npm view "botlog@${version}" version >/dev/null 2>&1; then
+            echo "botlog@${version} is already published on npm" >&2
+            exit 1
+          fi
+
+          tag_sha=""
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            tag_sha="$(git ls-remote --tags origin "refs/tags/${tag}" | awk '{print $1}')"
+            peeled_sha="$(git ls-remote --tags origin "refs/tags/${tag}^{}" | awk '{print $1}' || true)"
+            if [ -n "${peeled_sha}" ]; then
+              tag_sha="${peeled_sha}"
+            fi
+            if [ "${tag_sha}" != "${GITHUB_SHA}" ]; then
+              echo "Tag ${tag} already exists at ${tag_sha}, expected ${GITHUB_SHA}" >&2
+              exit 1
+            fi
+            echo "Tag ${tag} already exists at this commit; continuing so a failed publish can be retried."
+            echo "tag_exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "tag_exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Set package version from release input
+        run: npm pkg set "version=${{ steps.release.outputs.version }}" --no-git-tag-version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate release candidate
+        run: |
+          pnpm ci
+          pnpm pack:dry-run
+
+      - name: Create and push release tag
+        if: steps.release.outputs.tag_exists == 'false'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          MESSAGE: ${{ inputs.message }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          tag_message="${MESSAGE:-Botlog v${VERSION}}"
+          git tag -a "${TAG}" -m "${tag_message}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${TAG}"
+          echo "Created ${TAG}."
+
+      - name: Publish to npm
+        run: pnpm publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

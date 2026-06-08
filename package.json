@@ -1,9 +1,9 @@
 {
   "name": "botlog",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Lightweight live log viewer for scripts, services, files, and child processes.",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Botlog contributors",
   "repository": {
     "type": "git",
@@ -49,6 +49,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . && pnpm format:check",
+    "pack:dry-run": "pnpm pack --dry-run",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
