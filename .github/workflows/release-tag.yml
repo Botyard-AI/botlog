@@ -1,0 +1,95 @@
+name: release tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver version to release, without the leading v, e.g. 0.1.0"
+        required: true
+        type: string
+      message:
+        description: "Optional annotated tag message"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-tag
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify release request
+        id: release
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Release tags must be created from refs/heads/main; got ${GITHUB_REF}" >&2
+            exit 1
+          fi
+
+          version="${{ inputs.version }}"
+          VERSION="${version}" node --input-type=module <<'NODE'
+          const version = process.env.VERSION;
+          const semver = /^\d+\.\d+\.\d+$/;
+          if (!version || !semver.test(version)) {
+            console.error(`Release tag versions must be stable semver like 0.1.0; got ${version ?? ""}`);
+            process.exit(1);
+          }
+          NODE
+
+          tag="v${version}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "Tag ${tag} already exists" >&2
+            exit 1
+          fi
+
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate release candidate
+        run: |
+          pnpm ci
+          pnpm pack:dry-run
+
+      - name: Create and push release tag
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          MESSAGE: ${{ inputs.message }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RELEASE_TOKEN}" ]; then
+            echo "Missing RELEASE_TOKEN secret; required so pushed tags trigger the publish workflow" >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          tag_message="${MESSAGE:-Botlog v${VERSION}}"
+          git tag -a "${TAG}" -m "${tag_message}" "${GITHUB_SHA}"
+          git push "https://x-access-token:${RELEASE_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${TAG}"
+          echo "Created ${TAG}; the publish workflow will publish botlog@${VERSION}."

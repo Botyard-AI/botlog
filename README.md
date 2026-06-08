@@ -87,18 +87,20 @@ pnpm ci
 
 Botlog uses tag-based releases. The git tag is the source of truth for the published npm version; `package.json` uses `0.0.0` as the development baseline.
 
-To publish a release, push a semver tag:
+To publish a release, run the `release tag` GitHub Actions workflow from `main` with the target version, for example:
 
-```sh
-git tag v0.1.0
-git push origin v0.1.0
+```txt
+0.1.0
 ```
 
-The `publish` workflow derives `0.1.0` from the tag, patches `package.json` in CI, runs the full CI command, and publishes to npm with provenance.
+That workflow validates the release candidate, creates annotated tag `v0.1.0`, and pushes it. The pushed tag then triggers the `publish` workflow, which derives `0.1.0` from the tag, patches `package.json` in CI, runs the full CI command, and publishes to npm with provenance.
 
-Required repository secret:
+Required repository secrets:
 
+- `RELEASE_TOKEN` — GitHub token allowed to push tags. This cannot be the default `GITHUB_TOKEN`, because GitHub does not trigger follow-up workflows from events created by `GITHUB_TOKEN`.
 - `NPM_TOKEN` — npm automation token with publish access to the `botlog` package.
+
+The release workflow currently accepts stable semver versions such as `0.1.0`. Prerelease tags should wait until the publish workflow has explicit npm dist-tag handling.
 
 Before publishing locally or changing package configuration, verify the package contents:
 

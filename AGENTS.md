@@ -54,7 +54,7 @@ Run `pnpm ci` before pushing or reporting work complete. Run `pnpm pack:dry-run`
 - Import local TypeScript modules with `.js` specifiers because this repo uses NodeNext module resolution.
 - Keep server startup side-effect-free: importing the package must not bind a port.
 - Keep package publish configuration intentional. The npm package should include built `dist`, README, and LICENSE, and should not publish source tests or local demo output.
-- Releases are tag-based: `package.json` stays at the development baseline `0.0.0`, and the publish workflow derives the npm version from semver tags such as `v0.1.0`.
+- Releases are tag-based: `package.json` stays at the development baseline `0.0.0`. The `release tag` workflow creates annotated stable semver tags such as `v0.1.0`, and the `publish` workflow derives the npm version from the pushed tag. Do not replace `RELEASE_TOKEN` with the default `GITHUB_TOKEN`; tag pushes made with `GITHUB_TOKEN` do not trigger the follow-up publish workflow.
 - Prefer SSE over WebSockets for log streaming unless bidirectional communication becomes necessary.
 - File tailing should support multiple concurrent files and stay bounded; do not introduce unbounded reads.
 - Keep storage bounded; do not add unbounded log accumulation.
