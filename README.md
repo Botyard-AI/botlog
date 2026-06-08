@@ -85,13 +85,22 @@ pnpm ci
 
 ## Publishing
 
-The package is published to npm from GitHub Actions. Maintainers can publish by creating a GitHub Release or running the `publish` workflow manually. The workflow runs the full CI command before publishing with npm provenance.
+Botlog uses tag-based releases. The git tag is the source of truth for the published npm version; `package.json` uses `0.0.0` as the development baseline.
+
+To publish a release, push a semver tag:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The `publish` workflow derives `0.1.0` from the tag, patches `package.json` in CI, runs the full CI command, and publishes to npm with provenance.
 
 Required repository secret:
 
 - `NPM_TOKEN` — npm automation token with publish access to the `botlog` package.
 
-Before publishing locally or from CI, verify the package contents:
+Before publishing locally or changing package configuration, verify the package contents:
 
 ```sh
 pnpm pack:dry-run

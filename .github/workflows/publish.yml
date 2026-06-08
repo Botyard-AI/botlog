@@ -1,9 +1,9 @@
 name: publish
 
 on:
-  workflow_dispatch:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*.*.*"
 
 permissions:
   contents: read
@@ -25,30 +25,20 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
-      - name: Verify publish ref
+      - name: Set package version from tag
         run: |
           set -euo pipefail
-          version="$(node -p "require('./package.json').version")"
-          expected_tag="refs/tags/v${version}"
-
-          case "${GITHUB_EVENT_NAME}" in
-            workflow_dispatch)
-              if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
-                echo "Manual publishes must run from refs/heads/main; got ${GITHUB_REF}" >&2
-                exit 1
-              fi
-              ;;
-            release)
-              if [ "${GITHUB_REF}" != "${expected_tag}" ]; then
-                echo "Release tag must match package.json version: expected ${expected_tag}, got ${GITHUB_REF}" >&2
-                exit 1
-              fi
-              ;;
-            *)
-              echo "Unsupported publish event: ${GITHUB_EVENT_NAME}" >&2
-              exit 1
-              ;;
-          esac
+          version="${GITHUB_REF_NAME#v}"
+          VERSION="${version}" node --input-type=module <<'NODE'
+          const version = process.env.VERSION;
+          const semver = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+          if (!version || !semver.test(version)) {
+            console.error(`Release tags must be valid semver tags like v0.1.0; got ${process.env.GITHUB_REF_NAME ?? ""}`);
+            process.exit(1);
+          }
+          NODE
+          npm pkg set "version=${version}" --no-git-tag-version
+          echo "Publishing botlog@${version} from ${GITHUB_REF_NAME}"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
