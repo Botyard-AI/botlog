@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "description": "Lightweight live log viewer for scripts, services, files, and child processes.",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Botlog contributors",
   "repository": {
     "type": "git",
