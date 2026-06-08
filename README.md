@@ -93,12 +93,13 @@ To publish a release, run the `release tag` GitHub Actions workflow from `main` 
 0.1.0
 ```
 
-That workflow validates the release candidate, creates annotated tag `v0.1.0`, and pushes it. The pushed tag then triggers the `publish` workflow, which derives `0.1.0` from the tag, patches `package.json` in CI, runs the full CI command, and publishes to npm with provenance.
+That workflow validates the release candidate, creates annotated tag `v0.1.0`, patches `package.json` in CI, and publishes to npm with provenance in the same workflow run. Publishing in the same run avoids relying on workflow-created tag pushes to trigger a second workflow.
 
-Required repository secrets:
+Required repository secret:
 
-- `RELEASE_TOKEN` — GitHub token allowed to push tags. This cannot be the default `GITHUB_TOKEN`, because GitHub does not trigger follow-up workflows from events created by `GITHUB_TOKEN`.
 - `NPM_TOKEN` — npm automation token with publish access to the `botlog` package.
+
+There is also a tag-triggered `publish` workflow for trusted maintainers who push a release tag manually. The normal release path is the `release tag` workflow.
 
 The release workflow currently accepts stable semver versions such as `0.1.0`. Prerelease tags should wait until the publish workflow has explicit npm dist-tag handling.
 

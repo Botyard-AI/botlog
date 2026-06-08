@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Semver version to release, without the leading v, e.g. 0.1.0"
+        description: "Stable semver version to release, without the leading v, e.g. 0.1.0"
         required: true
         type: string
       message:
@@ -13,14 +13,15 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
+  id-token: write
 
 concurrency:
   group: release-tag
   cancel-in-progress: false
 
 jobs:
-  tag:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,9 +49,26 @@ jobs:
           NODE
 
           tag="v${version}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            echo "Tag ${tag} already exists" >&2
+          if npm view "botlog@${version}" version >/dev/null 2>&1; then
+            echo "botlog@${version} is already published on npm" >&2
             exit 1
+          fi
+
+          tag_sha=""
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            tag_sha="$(git ls-remote --tags origin "refs/tags/${tag}" | awk '{print $1}')"
+            peeled_sha="$(git ls-remote --tags origin "refs/tags/${tag}^{}" | awk '{print $1}' || true)"
+            if [ -n "${peeled_sha}" ]; then
+              tag_sha="${peeled_sha}"
+            fi
+            if [ "${tag_sha}" != "${GITHUB_SHA}" ]; then
+              echo "Tag ${tag} already exists at ${tag_sha}, expected ${GITHUB_SHA}" >&2
+              exit 1
+            fi
+            echo "Tag ${tag} already exists at this commit; continuing so a failed publish can be retried."
+            echo "tag_exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "tag_exists=false" >> "${GITHUB_OUTPUT}"
           fi
 
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
@@ -64,6 +82,10 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Set package version from release input
+        run: npm pkg set "version=${{ steps.release.outputs.version }}" --no-git-tag-version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -74,22 +96,22 @@ jobs:
           pnpm pack:dry-run
 
       - name: Create and push release tag
+        if: steps.release.outputs.tag_exists == 'false'
         env:
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}
           VERSION: ${{ steps.release.outputs.version }}
           MESSAGE: ${{ inputs.message }}
         run: |
           set -euo pipefail
-          if [ -z "${RELEASE_TOKEN}" ]; then
-            echo "Missing RELEASE_TOKEN secret; required so pushed tags trigger the publish workflow" >&2
-            exit 1
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           tag_message="${MESSAGE:-Botlog v${VERSION}}"
           git tag -a "${TAG}" -m "${tag_message}" "${GITHUB_SHA}"
-          git push "https://x-access-token:${RELEASE_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${TAG}"
-          echo "Created ${TAG}; the publish workflow will publish botlog@${VERSION}."
+          git push origin "refs/tags/${TAG}"
+          echo "Created ${TAG}."
+
+      - name: Publish to npm
+        run: pnpm publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
