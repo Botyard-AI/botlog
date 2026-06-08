@@ -24,6 +24,8 @@ import type {
 export class Botlog {
   readonly #store: LogStore;
   readonly #redactors: readonly Redactor[];
+  readonly #runId: string | undefined;
+  readonly #startedAt: string;
 
   constructor(options: BotlogOptions = {}) {
     this.#store = new LogStore({
@@ -31,6 +33,8 @@ export class Botlog {
       maxEntries: options.maxEntries ?? 10_000,
     });
     this.#redactors = [...(options.redact ?? [])];
+    this.#runId = options.runId;
+    this.#startedAt = new Date().toISOString();
   }
 
   createStream(name: string): BotlogStream {
@@ -131,7 +135,16 @@ export class Botlog {
   }
 
   listen(options: ListenOptions): BotlogServer {
-    return listen(this.#store, options);
+    return listen(
+      this.#store,
+      {
+        name: "botlog",
+        ...(this.#runId === undefined ? {} : { runId: this.#runId }),
+        title: this.#store.snapshot().title,
+        startedAt: this.#startedAt,
+      },
+      options
+    );
   }
 }
 

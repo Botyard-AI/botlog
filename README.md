@@ -33,6 +33,71 @@ process.on("SIGINT", () => {
 
 Run the server locally, keep it on a private network, or put it behind your own authenticated proxy when sharing logs with other people.
 
+## CLI usage
+
+Botlog also ships a CLI for scripts, bots, and local tools that need a log UI without writing a wrapper program.
+
+Wrap a command:
+
+```sh
+botlog -- pnpm ci
+```
+
+Print a machine-readable readiness event and bind a random local port:
+
+```sh
+botlog --json --port 0 --title "CI logs" -- pnpm ci
+```
+
+Example ready event:
+
+```json
+{
+  "event": "ready",
+  "url": "http://127.0.0.1:38417",
+  "host": "127.0.0.1",
+  "port": 38417,
+  "title": "CI logs",
+  "reused": false
+}
+```
+
+Tail existing files instead of launching a command:
+
+```sh
+botlog --json --port 0 --file ./logs/api.log --file ./logs/worker.log --from-beginning
+```
+
+For agent-friendly reuse and recovery, provide a run directory:
+
+```sh
+botlog --json --port 0 --run-dir .botlog/runs/ci -- pnpm ci
+```
+
+The run directory stores:
+
+```txt
+.botlog/runs/ci/
+├── botlog.json
+├── stdout.log
+└── stderr.log
+```
+
+If `botlog.json` points to a healthy existing Botlog server for the same run, the CLI prints a reused ready event instead of starting a duplicate server. If the server is gone, the same run directory can be served again by tailing its stored stdout/stderr logs:
+
+```sh
+botlog --json --port 0 --run-dir .botlog/runs/ci --from-beginning
+```
+
+Useful options:
+
+- `--host <host>` — bind host, default `127.0.0.1`
+- `--port <port>` — bind port, default `3030`; use `0` for a random port
+- `--file <path>` — attach a log file, repeatable
+- `--run-dir <dir>` / `--log-dir <dir>` — persist/reuse a run manifest plus stdout/stderr logs
+- `--keep-open` — keep serving after the wrapped command exits
+- `--redact <regex>` — redact matching text, repeatable
+
 ## Manual streams
 
 ```ts

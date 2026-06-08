@@ -4,10 +4,11 @@ import { streamSSE } from "hono/streaming";
 
 import type { LogStore, StoreEvent } from "./store.js";
 import { renderUi } from "./ui.js";
-import type { BotlogServer, BotlogSnapshot, ListenOptions } from "./types.js";
+import type { BotlogInfo, BotlogServer, BotlogSnapshot, ListenOptions } from "./types.js";
 
 export interface CreateAppOptions {
   readonly store: LogStore;
+  readonly info?: BotlogInfo;
 }
 
 export function createApp(options: CreateAppOptions): Hono {
@@ -15,6 +16,15 @@ export function createApp(options: CreateAppOptions): Hono {
 
   app.get("/", (c) => c.html(renderUi(options.store.snapshot().title)));
   app.get("/healthz", (c) => c.json({ ok: true }));
+  app.get("/api/info", (c) =>
+    c.json<BotlogInfo>(
+      options.info ?? {
+        name: "botlog",
+        title: options.store.snapshot().title,
+        startedAt: new Date(0).toISOString(),
+      }
+    )
+  );
   app.get("/api/state", (c) => c.json<BotlogSnapshot>(options.store.snapshot()));
   app.get("/events", (c) =>
     streamSSE(c, async (stream) => {
@@ -58,9 +68,9 @@ export function createApp(options: CreateAppOptions): Hono {
   return app;
 }
 
-export function listen(store: LogStore, options: ListenOptions): BotlogServer {
+export function listen(store: LogStore, info: BotlogInfo, options: ListenOptions): BotlogServer {
   const serveOptions = {
-    fetch: createApp({ store }).fetch,
+    fetch: createApp({ store, info }).fetch,
     port: options.port,
     ...(options.hostname === undefined ? {} : { hostname: options.hostname }),
   };

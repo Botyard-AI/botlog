@@ -7,6 +7,7 @@ export type {
   AttachedFile,
   AttachedProcessOptions,
   AttachFileOptions,
+  BotlogInfo,
   BotlogOptions,
   BotlogServer,
   BotlogSnapshot,

@@ -26,12 +26,20 @@ export interface BotlogSnapshot {
   readonly entries: readonly LogEntry[];
 }
 
+export interface BotlogInfo {
+  readonly name: "botlog";
+  readonly runId?: string;
+  readonly title: string;
+  readonly startedAt: string;
+}
+
 export type Redactor = string | RegExp | ((line: string) => string);
 
 export interface BotlogOptions {
   readonly title?: string;
   readonly maxEntries?: number;
   readonly redact?: readonly Redactor[];
+  readonly runId?: string;
 }
 
 export interface ListenOptions {
