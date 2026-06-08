@@ -4,9 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Stable semver version to release, without the leading v, e.g. 0.1.0"
-        required: true
+        description: "Optional explicit stable semver version, without the leading v. Leave blank to auto-bump."
+        required: false
         type: string
+      bump:
+        description: "Version bump to apply when version is blank"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
       message:
         description: "Optional annotated tag message"
         required: false
@@ -30,6 +39,9 @@ jobs:
 
       - name: Verify release request
         id: release
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+          BUMP: ${{ inputs.bump }}
         run: |
           set -euo pipefail
 
@@ -38,19 +50,122 @@ jobs:
             exit 1
           fi
 
-          version="${{ inputs.version }}"
-          VERSION="${version}" node --input-type=module <<'NODE'
-          const version = process.env.VERSION;
-          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
-          if (!version || !semver.test(version)) {
-            console.error(`Release tag versions must be stable semver like 0.1.0; got ${version ?? ""}`);
-            process.exit(1);
+          npm_view() {
+            local package_spec="$1"
+            local output_file
+            local error_file
+            output_file="$(mktemp)"
+            error_file="$(mktemp)"
+
+            if npm view "${package_spec}" version --json > "${output_file}" 2> "${error_file}"; then
+              OUTPUT_FILE="${output_file}" node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const value = JSON.parse(readFileSync(process.env.OUTPUT_FILE, "utf8"));
+          if (typeof value === "string") {
+            console.log(value);
+          } else if (Array.isArray(value) && typeof value.at(-1) === "string") {
+            console.log(value.at(-1));
           }
           NODE
+              rm -f "${output_file}" "${error_file}"
+              return 0
+            else
+              local status=$?
+              if grep -Eq "E404|404 Not Found|is not in this registry" "${error_file}"; then
+                rm -f "${output_file}" "${error_file}"
+                return 44
+              fi
+
+              cat "${error_file}" >&2
+              rm -f "${output_file}" "${error_file}"
+              return "${status}"
+            fi
+          }
+
+          package_version="$(node -p "require('./package.json').version")"
+          npm_version=""
+          if npm_version="$(npm_view botlog)"; then
+            :
+          elif [ "$?" -eq 44 ]; then
+            echo "botlog is not published on npm yet; using package baseline ${package_version}."
+          else
+            echo "Failed to query latest botlog version from npm." >&2
+            exit 1
+          fi
+
+          PACKAGE_VERSION="${package_version}" \
+          NPM_VERSION="${npm_version}" \
+          node --input-type=module <<'NODE' > /tmp/release-version.env
+          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+          const versionInput = (process.env.VERSION_INPUT ?? "").trim();
+          const bump = process.env.BUMP ?? "patch";
+          const packageVersion = process.env.PACKAGE_VERSION ?? "0.0.0";
+          const npmVersion = (process.env.NPM_VERSION ?? "").trim();
+          const baseVersion = npmVersion || packageVersion;
+
+          const parse = (version) => {
+            if (!semver.test(version)) {
+              throw new Error(`Expected stable semver like 0.1.0; got ${version}`);
+            }
+            return version.split(".").map((part) => Number.parseInt(part, 10));
+          };
+
+          const compare = (a, b) => {
+            for (let index = 0; index < 3; index += 1) {
+              if (a[index] !== b[index]) {
+                return a[index] > b[index] ? 1 : -1;
+              }
+            }
+            return 0;
+          };
+
+          const format = ([major, minor, patch]) => `${major}.${minor}.${patch}`;
+
+          const latest = parse(baseVersion);
+          let version;
+
+          if (versionInput) {
+            version = parse(versionInput);
+          } else {
+            if (!["patch", "minor", "major"].includes(bump)) {
+              throw new Error(`Bump must be patch, minor, or major; got ${bump}`);
+            }
+
+            version = [...latest];
+            if (bump === "patch") {
+              version[2] += 1;
+            } else if (bump === "minor") {
+              version[1] += 1;
+              version[2] = 0;
+            } else {
+              version[0] += 1;
+              version[1] = 0;
+              version[2] = 0;
+            }
+          }
+
+          if (compare(version, latest) <= 0) {
+            throw new Error(`Release version ${format(version)} must be greater than latest known version ${baseVersion}`);
+          }
+
+          console.log(`version=${format(version)}`);
+          console.log(`base_version=${baseVersion}`);
+          console.log(`resolution=${versionInput ? "explicit" : `auto-${bump}`}`);
+          NODE
+
+          cat /tmp/release-version.env >> "${GITHUB_OUTPUT}"
+          # shellcheck disable=SC1091
+          source /tmp/release-version.env
 
           tag="v${version}"
-          if npm view "botlog@${version}" version >/dev/null 2>&1; then
+          if npm_view "botlog@${version}" > /dev/null; then
             echo "botlog@${version} is already published on npm" >&2
+            exit 1
+          elif [ "$?" -eq 44 ]; then
+            echo "botlog@${version} is not published on npm yet."
+          else
+            echo "Failed to query botlog@${version} from npm." >&2
             exit 1
           fi
 
@@ -71,8 +186,8 @@ jobs:
             echo "tag_exists=false" >> "${GITHUB_OUTPUT}"
           fi
 
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved ${tag} from ${resolution} against base ${base_version}."
 
       - uses: pnpm/action-setup@v4
         with:
@@ -84,7 +199,7 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
-      - name: Set package version from release input
+      - name: Set package version from resolved release
         run: npm pkg set "version=${{ steps.release.outputs.version }}" --no-git-tag-version
 
       - name: Install dependencies
