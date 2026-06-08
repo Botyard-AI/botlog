@@ -39,6 +39,9 @@ jobs:
 
       - name: Verify release request
         id: release
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+          BUMP: ${{ inputs.bump }}
         run: |
           set -euo pipefail
 
@@ -47,11 +50,50 @@ jobs:
             exit 1
           fi
 
-          package_version="$(node -p "require('./package.json').version")"
-          npm_version="$(npm view botlog version 2>/dev/null || true)"
+          npm_view() {
+            local package_spec="$1"
+            local output_file
+            local error_file
+            output_file="$(mktemp)"
+            error_file="$(mktemp)"
 
-          VERSION_INPUT="${{ inputs.version }}" \
-          BUMP="${{ inputs.bump }}" \
+            if npm view "${package_spec}" version --json > "${output_file}" 2> "${error_file}"; then
+              OUTPUT_FILE="${output_file}" node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const value = JSON.parse(readFileSync(process.env.OUTPUT_FILE, "utf8"));
+          if (typeof value === "string") {
+            console.log(value);
+          } else if (Array.isArray(value) && typeof value.at(-1) === "string") {
+            console.log(value.at(-1));
+          }
+          NODE
+              rm -f "${output_file}" "${error_file}"
+              return 0
+            else
+              local status=$?
+              if grep -Eq "E404|404 Not Found|is not in this registry" "${error_file}"; then
+                rm -f "${output_file}" "${error_file}"
+                return 44
+              fi
+
+              cat "${error_file}" >&2
+              rm -f "${output_file}" "${error_file}"
+              return "${status}"
+            fi
+          }
+
+          package_version="$(node -p "require('./package.json').version")"
+          npm_version=""
+          if npm_version="$(npm_view botlog)"; then
+            :
+          elif [ "$?" -eq 44 ]; then
+            echo "botlog is not published on npm yet; using package baseline ${package_version}."
+          else
+            echo "Failed to query latest botlog version from npm." >&2
+            exit 1
+          fi
+
           PACKAGE_VERSION="${package_version}" \
           NPM_VERSION="${npm_version}" \
           node --input-type=module <<'NODE' > /tmp/release-version.env
@@ -117,8 +159,13 @@ jobs:
           source /tmp/release-version.env
 
           tag="v${version}"
-          if npm view "botlog@${version}" version >/dev/null 2>&1; then
+          if npm_view "botlog@${version}" > /dev/null; then
             echo "botlog@${version} is already published on npm" >&2
+            exit 1
+          elif [ "$?" -eq 44 ]; then
+            echo "botlog@${version} is not published on npm yet."
+          else
+            echo "Failed to query botlog@${version} from npm." >&2
             exit 1
           fi
 
