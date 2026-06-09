@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { parseCliArgs, runCli } from "../src/cli.js";
+import { Botlog } from "../src/index.js";
 
 describe("cli", () => {
   const tempDirs: string[] = [];
@@ -111,9 +112,19 @@ describe("cli", () => {
     ]);
 
     expect(code).toBe(0);
-    const ready = JSON.parse(logs[0] ?? "") as { runDir: string; runId: string; port: number };
+    const ready = JSON.parse(logs[0] ?? "") as {
+      runDir: string;
+      runId: string;
+      port: number;
+      manifestPath: string;
+      stdoutPath: string;
+      stderrPath: string;
+    };
     expect(ready.runDir).toBe(runDir);
     expect(ready.runId).toBe(runDir.split(/[/\\]/).at(-1));
+    expect(ready.manifestPath).toBe(join(runDir, "botlog.json"));
+    expect(ready.stdoutPath).toBe(join(runDir, "stdout.log"));
+    expect(ready.stderrPath).toBe(join(runDir, "stderr.log"));
     expect(ready.port).toBeGreaterThan(0);
 
     const manifest = JSON.parse(await readFile(join(runDir, "botlog.json"), "utf8")) as {
@@ -125,6 +136,61 @@ describe("cli", () => {
     expect(manifest.url).toContain(`:${String(ready.port)}`);
     await expect(readFile(manifest.files.stdout, "utf8")).resolves.toContain("stdout line");
     await expect(readFile(manifest.files.stderr, "utf8")).resolves.toContain("stderr line");
+  });
+
+  it("includes run-dir file paths in reused ready events", async () => {
+    const runDir = await mkdtemp(join(tmpdir(), "botlog-cli-reuse-"));
+    tempDirs.push(runDir);
+    const runId = runDir.split(/[/\\]/).at(-1) ?? "run";
+    const botlog = new Botlog({ title: "reused run", runId });
+    const server = botlog.listen({ port: 0 });
+    const port = await waitForPort(server);
+    const manifestPath = join(runDir, "botlog.json");
+    const stdoutPath = join(runDir, "stdout.log");
+    const stderrPath = join(runDir, "stderr.log");
+    await writeFile(stdoutPath, "previous stdout\n");
+    await writeFile(stderrPath, "previous stderr\n");
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          runId,
+          title: "reused run",
+          host: "127.0.0.1",
+          port,
+          url: `http://127.0.0.1:${String(port)}`,
+          serverPid: process.pid,
+          startedAt: new Date().toISOString(),
+          files: { stdout: stdoutPath, stderr: stderrPath, attached: [] },
+        },
+        null,
+        2
+      )}\n`
+    );
+
+    const logs: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((message?: unknown) => {
+      logs.push(String(message));
+    });
+
+    try {
+      const code = await runCli(["--json", "--run-dir", runDir]);
+
+      expect(code).toBe(0);
+      const ready = JSON.parse(logs[0] ?? "") as {
+        reused: boolean;
+        manifestPath: string;
+        stdoutPath: string;
+        stderrPath: string;
+      };
+      expect(ready.reused).toBe(true);
+      expect(ready.manifestPath).toBe(manifestPath);
+      expect(ready.stdoutPath).toBe(stdoutPath);
+      expect(ready.stderrPath).toBe(stderrPath);
+    } finally {
+      await server.close();
+    }
   });
 
   it("redacts run-dir stdout and stderr logs", async () => {
@@ -161,3 +227,13 @@ describe("cli", () => {
     await expect(readFile(join(runDir, "stderr.log"), "utf8")).resolves.not.toContain("SECRET-456");
   });
 });
+
+async function waitForPort(server: { readonly port: number }): Promise<number> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (server.port !== 0) {
+      return server.port;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return server.port;
+}

@@ -58,6 +58,9 @@ export interface ReadyEvent {
   readonly title: string;
   readonly runId?: string;
   readonly runDir?: string;
+  readonly manifestPath?: string;
+  readonly stdoutPath?: string;
+  readonly stderrPath?: string;
   readonly reused: boolean;
 }
 
@@ -239,6 +242,9 @@ export async function runCli(argv: readonly string[] = process.argv.slice(2)): P
         title: reuse.manifest.title,
         runId: reuse.manifest.runId,
         runDir: reuse.runDir.path,
+        manifestPath: reuse.runDir.manifestPath,
+        stdoutPath: reuse.runDir.stdoutPath,
+        stderrPath: reuse.runDir.stderrPath,
         reused: true,
       },
       options.json
@@ -298,7 +304,15 @@ export async function runCli(argv: readonly string[] = process.argv.slice(2)): P
     host: options.host,
     port,
     title,
-    ...(runDir === undefined ? {} : { runId: runDir.runId, runDir: runDir.path }),
+    ...(runDir === undefined
+      ? {}
+      : {
+          runId: runDir.runId,
+          runDir: runDir.path,
+          manifestPath: runDir.manifestPath,
+          stdoutPath: runDir.stdoutPath,
+          stderrPath: runDir.stderrPath,
+        }),
     reused: false,
   };
 
