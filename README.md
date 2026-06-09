@@ -83,6 +83,24 @@ The run directory stores:
 └── stderr.log
 ```
 
+With `--json`, the ready event includes those paths directly so automation can archive or attach logs without reading the manifest first. Botlog resolves `--run-dir` before emission, so these fields are absolute paths in actual output:
+
+```json
+{
+  "event": "ready",
+  "url": "http://127.0.0.1:38417",
+  "host": "127.0.0.1",
+  "port": 38417,
+  "title": "pnpm ci",
+  "runId": "ci",
+  "runDir": "/path/to/.botlog/runs/ci",
+  "manifestPath": "/path/to/.botlog/runs/ci/botlog.json",
+  "stdoutPath": "/path/to/.botlog/runs/ci/stdout.log",
+  "stderrPath": "/path/to/.botlog/runs/ci/stderr.log",
+  "reused": false
+}
+```
+
 If `botlog.json` points to a healthy existing Botlog server for the same run, the CLI prints a reused ready event instead of starting a duplicate server. If the server is gone, the same run directory can be served again by tailing its stored stdout/stderr logs:
 
 ```sh
