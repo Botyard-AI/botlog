@@ -5,6 +5,7 @@ coverage/
 .pnpm-store/
 *.log
 .demo-logs/
+.botlog/
 npm-debug.log*
 pnpm-debug.log*
 .env

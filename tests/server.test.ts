@@ -12,6 +12,28 @@ describe("server", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
 
+  it("serves botlog identity info", async () => {
+    const app = createApp({
+      store: new LogStore({ title: "test", maxEntries: 10 }),
+      info: {
+        name: "botlog",
+        runId: "ci",
+        title: "test",
+        startedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+
+    const response = await app.request("/api/info");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      name: "botlog",
+      runId: "ci",
+      title: "test",
+      startedAt: "2026-01-01T00:00:00.000Z",
+    });
+  });
+
   it("serves state", async () => {
     const store = new LogStore({ title: "test", maxEntries: 10 });
     store.ensureStream("example", "example");
